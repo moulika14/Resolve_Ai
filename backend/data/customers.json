@@ -1,0 +1,26 @@
+[
+  {
+    "customer_id": "CUST001",
+    "name": "Ananya Sharma",
+    "email": "ananya@example.com",
+    "phone": "+91-9876543210",
+    "membership": "Premium",
+    "total_orders": 12
+  },
+  {
+    "customer_id": "CUST002",
+    "name": "Rahul Mehta",
+    "email": "rahul@example.com",
+    "phone": "+91-9876543211",
+    "membership": "Standard",
+    "total_orders": 5
+  },
+  {
+    "customer_id": "CUST003",
+    "name": "Priya Nair",
+    "email": "priya@example.com",
+    "phone": "+91-9876543212",
+    "membership": "Premium",
+    "total_orders": 18
+  }
+]

@@ -1,0 +1,55 @@
+[
+  {
+    "order_id": "10482",
+    "customer_id": "CUST001",
+    "product": "Wireless Headphones",
+    "order_date": "2026-09-05",
+    "expected_delivery": "2026-09-08",
+    "actual_delivery": null,
+    "status": "delayed",
+    "delivery_days_delayed": 3,
+    "shipping_type": "Express",
+    "amount": 3499,
+    "payment_status": "paid",
+    "refund_status": "initiated"
+  },
+  {
+    "order_id": "10483",
+    "customer_id": "CUST002",
+    "product": "Smart Watch",
+    "order_date": "2026-09-07",
+    "expected_delivery": "2026-09-11",
+    "actual_delivery": null,
+    "status": "out_for_delivery",
+    "delivery_days_delayed": 0,
+    "shipping_type": "Standard",
+    "amount": 4999,
+    "payment_status": "paid"
+  },
+  {
+    "order_id": "10484",
+    "customer_id": "CUST003",
+    "product": "Bluetooth Speaker",
+    "order_date": "2026-09-04",
+    "expected_delivery": "2026-09-07",
+    "actual_delivery": "2026-09-07",
+    "status": "delivered",
+    "delivery_days_delayed": 0,
+    "shipping_type": "Standard",
+    "amount": 2299,
+    "payment_status": "paid"
+  },
+  {
+    "order_id": "10485",
+    "customer_id": "CUST001",
+    "product": "Laptop Stand",
+    "order_date": "2026-09-08",
+    "expected_delivery": "2026-09-12",
+    "actual_delivery": null,
+    "status": "processing",
+    "delivery_days_delayed": 0,
+    "shipping_type": "Standard",
+    "amount": 1599,
+    "payment_status": "paid"
+  }
+]

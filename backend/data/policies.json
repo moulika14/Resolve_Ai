@@ -1,0 +1,42 @@
+[
+  {
+    "policy_type": "delivery_refund",
+    "title": "Delayed Express Delivery Refund",
+    "conditions": [
+      "Order was shipped using Express delivery",
+      "Delivery is delayed by 2 or more days",
+      "Order has been paid for",
+      "Customer has not already received a refund"
+    ],
+    "action": "Customer is eligible for a full shipping fee refund."
+  },
+  {
+    "policy_type": "delivery_refund",
+    "title": "Delayed Standard Delivery",
+    "conditions": [
+      "Order was shipped using Standard delivery",
+      "Delivery is delayed by 5 or more days",
+      "Order has been paid for"
+    ],
+    "action": "Customer may be eligible for compensation after review."
+  },
+  {
+    "policy_type": "product_refund",
+    "title": "Product Damage Refund",
+    "conditions": [
+      "Product was delivered damaged",
+      "Customer reports the issue within 7 days",
+      "Proof of damage is available"
+    ],
+    "action": "Customer is eligible for a product refund after verification."
+  },
+  {
+    "policy_type": "cancellation",
+    "title": "Order Cancellation",
+    "conditions": [
+      "Order has not been delivered",
+      "Order has not entered final delivery stage"
+    ],
+    "action": "Cancellation can be initiated."
+  }
+]
