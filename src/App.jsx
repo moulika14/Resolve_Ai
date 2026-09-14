@@ -29,35 +29,162 @@ function App() {
   const [isInvestigating, setIsInvestigating] = useState(false)
   const [investigationStep, setInvestigationStep] = useState(0)
   const [selectedCase, setSelectedCase] = useState('#10482')
+  const [supportResult, setSupportResult] = useState(null)
 
-  const handleSendComplaint = () => {
+  // Safely convert backend values into text
+  const safeText = (value, fallback = '') => {
+    if (value === null || value === undefined) {
+      return fallback
+    }
+
+    if (typeof value === 'string') {
+      return value
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value)
+    }
+
+    if (typeof value === 'object') {
+      if (typeof value.message === 'string') {
+        return value.message
+      }
+
+      if (typeof value.reason === 'string') {
+        return value.reason
+      }
+
+      if (typeof value.details === 'string') {
+        return value.details
+      }
+
+      return fallback
+    }
+
+    return fallback
+  }
+
+  // Backend may return decision either as a string or as an object
+  const getDecision = (result) => {
+    if (!result) return ''
+
+    if (typeof result.decision === 'string') {
+      return result.decision.toLowerCase()
+    }
+
+    if (
+      result.decision &&
+      typeof result.decision === 'object' &&
+      typeof result.decision.decision === 'string'
+    ) {
+      return result.decision.decision.toLowerCase()
+    }
+
+    return ''
+  }
+
+  // Backend may return action directly, inside action object,
+  // or inside the decision object
+  const getAction = (result) => {
+    if (!result) return ''
+
+    if (typeof result.action === 'string') {
+      return result.action.toLowerCase()
+    }
+
+    if (
+      result.action &&
+      typeof result.action === 'object' &&
+      typeof result.action.action === 'string'
+    ) {
+      return result.action.action.toLowerCase()
+    }
+
+    if (
+      result.decision &&
+      typeof result.decision === 'object' &&
+      typeof result.decision.action === 'string'
+    ) {
+      return result.decision.action.toLowerCase()
+    }
+
+    return ''
+  }
+
+  const handleSendComplaint = async () => {
     if (!complaint.trim() || isInvestigating) return
 
-    setSubmittedComplaint(complaint)
+    const userComplaint = complaint.trim()
+
+    setSubmittedComplaint(userComplaint)
     setComplaint('')
+    setSupportResult(null)
     setIsInvestigating(true)
     setInvestigationStep(1)
 
-    setTimeout(() => {
+    try {
+      let customerId = 'CUST001'
+      let orderId = '10482'
+
+      const complaintLower = userComplaint.toLowerCase()
+
+      // Scenario 3: Missing / invalid order
+      if (
+        complaintLower.includes('order is delayed') &&
+        complaintLower.includes('please resolve')
+      ) {
+        customerId = 'CUST002'
+        orderId = '99999'
+      }
+
+      // Scenario 2: Out-of-policy standard delivery request
+      else if (
+        complaintLower.includes('standard') ||
+        complaintLower.includes('not delayed enough')
+      ) {
+        customerId = 'CUST002'
+        orderId = '10483'
+      }
+
+      const response = await fetch(
+        'http://127.0.0.1:8000/api/support',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            customer_id: customerId,
+            order_id: orderId,
+            message: userComplaint,
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Backend error: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      console.log('ResolveAI backend response:', data)
+
+      setSupportResult(data)
+
+      // Show investigation steps one by one
       setInvestigationStep(2)
-    }, 800)
 
-    setTimeout(() => {
-      setInvestigationStep(3)
-    }, 1600)
-
-    setTimeout(() => {
-      setInvestigationStep(4)
-    }, 2400)
-
-    setTimeout(() => {
-      setInvestigationStep(5)
-    }, 3200)
-
-    setTimeout(() => {
+      setTimeout(() => setInvestigationStep(3), 500)
+      setTimeout(() => setInvestigationStep(4), 1000)
+      setTimeout(() => setInvestigationStep(5), 1500)
+      setTimeout(() => setInvestigationStep(6), 2000)
+      setTimeout(() => setInvestigationStep(7), 2400)
+      setTimeout(() => setIsInvestigating(false), 2600)
+    } catch (error) {
+      console.error('Support API error:', error)
       setIsInvestigating(false)
-      setInvestigationStep(6)
-    }, 4000)
+      setInvestigationStep(0)
+    }
   }
 
   const handleStartSupport = () => {
@@ -123,17 +250,17 @@ function App() {
     },
     {
       title: 'Order Lookup',
-      description: 'Order #78421 located',
+      description: 'Order information checked',
       icon: Package,
     },
     {
       title: 'Delivery Check',
-      description: 'Express delivery · 3 days late',
+      description: 'Delivery status checked',
       icon: Truck,
     },
     {
       title: 'Support History',
-      description: '1 previous interaction found',
+      description: 'Support history reviewed',
       icon: History,
     },
     {
@@ -162,7 +289,10 @@ function App() {
           </p>
         </div>
 
-        <button className="primary-button" onClick={handleStartSupport}>
+        <button
+          className="primary-button"
+          onClick={handleStartSupport}
+        >
           <MessageCircle size={17} />
           Start Support Case
           <ArrowRight size={16} />
@@ -303,65 +433,95 @@ function App() {
     </div>
   )
 
-  const renderCustomerSupport = () => (
-    <div className="support-page">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">CUSTOMER SUPPORT</p>
+  const renderCustomerSupport = () => {
+    const decision = getDecision(supportResult)
+    const action = getAction(supportResult)
 
-          <h1>How can we help?</h1>
+    const reason = safeText(
+      supportResult?.reason ||
+        supportResult?.decision?.reason,
+      'ResolveAI completed the investigation and determined the next appropriate action.'
+    )
 
-          <p>
-            Describe your issue and ResolveAI will investigate it.
-          </p>
-        </div>
+    const customerResponse = safeText(
+      supportResult?.customer_response ||
+        supportResult?.customerResponse,
+      'Your request has been forwarded to a human support specialist for further review.'
+    )
 
-        <div className="ai-status">
-          <span></span>
-          AI ONLINE
-        </div>
-      </div>
+    const customer =
+      supportResult?.investigation?.customer ||
+      supportResult?.customer
 
-      <div className="support-main-grid">
-        <div className="support-card">
-          <div className="support-card-header">
-            <div className="ai-avatar">
-              <Bot size={18} />
-            </div>
+    const customerName =
+      customer?.name ||
+      customer?.customer_name ||
+      customer?.full_name ||
+      customer?.first_name ||
+      'Customer'
 
-            <div>
-              <strong>ResolveAI</strong>
-              <span>Autonomous Support Agent</span>
-            </div>
+    const order = supportResult?.investigation?.order
+
+    const orderId = order?.order_id || null
+    const orderAmount = order?.amount ?? null
+
+    const deliveryType =
+      order?.delivery_type ||
+      order?.delivery_speed ||
+      order?.shipping_type ||
+      'Delivery information unavailable'
+
+    const daysDelayed =
+      order?.days_delayed ??
+      order?.delay_days ??
+      order?.delayed_days ??
+      null
+
+    const deliveryStatus =
+      order?.status === 'out_for_delivery'
+        ? 'Out for delivery'
+        : order?.status === 'delayed'
+          ? 'Delayed'
+          : order?.status
+            ? order.status
+            : 'Unavailable'
+
+    const ticketHistory =
+      supportResult?.investigation?.ticket_history || []
+
+    return (
+      <div className="support-page">
+        <div className="page-heading">
+          <div>
+            <p className="eyebrow">CUSTOMER SUPPORT</p>
+
+            <h1>How can we help?</h1>
+
+            <p>
+              Describe your issue and ResolveAI will investigate it.
+            </p>
           </div>
 
-          <div className="chat-area">
-            <div className="message ai-message">
-              <div className="message-avatar">
-                <Bot size={15} />
+          <div className="ai-status">
+            <span></span>
+            AI ONLINE
+          </div>
+        </div>
+
+        <div className="support-main-grid">
+          <div className="support-card">
+            <div className="support-card-header">
+              <div className="ai-avatar">
+                <Bot size={18} />
               </div>
 
-              <div className="message-content">
+              <div>
                 <strong>ResolveAI</strong>
-
-                <p>
-                  Hi! I'm ResolveAI. Tell me what happened and I'll
-                  investigate your issue and find the best resolution.
-                </p>
+                <span>Autonomous Support Agent</span>
               </div>
             </div>
 
-            {submittedComplaint && (
-              <div className="message customer-message">
-                <div className="message-content">
-                  <strong>You</strong>
-
-                  <p>{submittedComplaint}</p>
-                </div>
-              </div>
-            )}
-
-            {submittedComplaint && !isInvestigating && (
+            <div className="chat-area">
               <div className="message ai-message">
                 <div className="message-avatar">
                   <Bot size={15} />
@@ -371,274 +531,388 @@ function App() {
                   <strong>ResolveAI</strong>
 
                   <p>
-                    I've completed my investigation. The available
-                    evidence indicates that this case qualifies for
-                    an automatic refund.
+                    Hi! I'm ResolveAI. Tell me what happened and I'll
+                    investigate your issue and find the best resolution.
                   </p>
                 </div>
               </div>
-            )}
-          </div>
 
-          <div className="support-input">
-            <input
-              type="text"
-              placeholder="Describe your issue..."
-              value={complaint}
-              onChange={(e) => setComplaint(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleSendComplaint()
-                }
-              }}
-            />
+              {submittedComplaint && (
+                <div className="message customer-message">
+                  <div className="message-content">
+                    <strong>You</strong>
 
-            <button
-              onClick={handleSendComplaint}
-              disabled={isInvestigating}
-              aria-label="Send complaint"
-            >
-              <Send size={17} />
-            </button>
-          </div>
-        </div>
+                    <p>{submittedComplaint}</p>
+                  </div>
+                </div>
+              )}
 
-        <div className="investigation-card">
-          <div className="investigation-header">
-            <div>
-              <p className="eyebrow">AI INVESTIGATION</p>
+              {submittedComplaint &&
+                !isInvestigating &&
+                supportResult && (
+                  <div className="message ai-message">
+                    <div className="message-avatar">
+                      <Bot size={15} />
+                    </div>
 
-              <h3>
-                {!submittedComplaint
-                  ? 'Waiting for customer issue'
-                  : isInvestigating
-                    ? 'Investigating case #10482'
-                    : 'Analysis complete — case #10482'}
-              </h3>
+                    <div className="message-content">
+                      <strong>ResolveAI</strong>
+
+                      <p>{customerResponse}</p>
+                    </div>
+                  </div>
+                )}
             </div>
 
-            <span className="investigating-badge">
-              {!submittedComplaint
-                ? '● Ready'
-                : isInvestigating
-                  ? '● Investigating'
-                  : '✓ Analysis Complete'}
-            </span>
-          </div>
-
-          <div className="investigation-steps">
-            <div className={`step ${getStepClass(1)}`}>
-              <span>{getStepIcon(1)}</span>
-
-              <div>
-                <strong>Customer verified</strong>
-
-                <p>
-                  {investigationStep > 1
-                    ? 'Customer identity confirmed'
-                    : investigationStep === 1
-                      ? 'Verifying customer...'
-                      : 'Waiting to verify customer'}
-                </p>
-              </div>
-            </div>
-
-            <div className={`step ${getStepClass(2)}`}>
-              <span>{getStepIcon(2)}</span>
-
-              <div>
-                <strong>Order found</strong>
-
-                <p>
-                  {investigationStep > 2
-                    ? 'Order #78421 · ₹2,499 · Delivered'
-                    : investigationStep === 2
-                      ? 'Checking order information...'
-                      : 'Waiting for order lookup'}
-                </p>
-              </div>
-            </div>
-
-            <div className={`step ${getStepClass(3)}`}>
-              <span>{getStepIcon(3)}</span>
-
-              <div>
-                <strong>Delivery checked</strong>
-
-                <p>
-                  {investigationStep > 3
-                    ? 'Delivered · 3 days late · Express delivery'
-                    : investigationStep === 3
-                      ? 'Checking delivery status...'
-                      : 'Waiting for delivery check'}
-                </p>
-              </div>
-            </div>
-
-            <div className={`step ${getStepClass(4)}`}>
-              <span>{getStepIcon(4)}</span>
-
-              <div>
-                <strong>Support history checked</strong>
-
-                <p>
-                  {investigationStep > 4
-                    ? '1 previous support interaction found'
-                    : investigationStep === 4
-                      ? 'Checking support history...'
-                      : 'Waiting for support history'}
-                </p>
-              </div>
-            </div>
-
-            <div className={`step ${getStepClass(5)}`}>
-              <span>{getStepIcon(5)}</span>
-
-              <div>
-                <strong>Refund policy checked</strong>
-
-                <p>
-                  {investigationStep > 5
-                    ? 'Eligible under delayed-delivery refund policy'
-                    : investigationStep === 5
-                      ? 'Checking refund policy...'
-                      : 'Waiting for policy verification'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="decision-box support-decision">
-        <div className="decision-header">
-          <div>
-            <p className="eyebrow">AI DECISION & RESOLUTION</p>
-
-            <h2>
-              {!submittedComplaint
-                ? 'No active case'
-                : isInvestigating
-                  ? 'Analyzing evidence...'
-                  : 'Refund approved'}
-            </h2>
-          </div>
-
-          {submittedComplaint && !isInvestigating && (
-            <div className="decision-approved">
-              <Check size={15} />
-              APPROVED
-            </div>
-          )}
-        </div>
-
-        {!submittedComplaint && (
-          <>
-            <p>
-              Submit a customer issue to start the autonomous
-              investigation.
-            </p>
-
-            <div className="decision-status waiting">
-              Waiting for complaint
-            </div>
-          </>
-        )}
-
-        {submittedComplaint && isInvestigating && (
-          <>
-            <p>
-              ResolveAI is checking customer data, order information,
-              delivery status, support history, and refund policy.
-            </p>
-
-            <div className="progress-bar">
-              <div
-                style={{
-                  width: `${Math.min(
-                    (investigationStep / 5) * 100,
-                    100
-                  )}%`,
+            <div className="support-input">
+              <input
+                type="text"
+                placeholder="Describe your issue..."
+                value={complaint}
+                onChange={(e) => setComplaint(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSendComplaint()
+                  }
                 }}
-              ></div>
-            </div>
-
-            <div className="decision-status investigating">
-              Investigation in progress
-            </div>
-          </>
-        )}
-
-        {submittedComplaint && !isInvestigating && (
-          <>
-            <p>
-              Evidence matches the refund policy. ResolveAI determined
-              that the customer is eligible for an automatic refund.
-            </p>
-
-            <div className="decision-flow">
-              <div className="decision-action">
-                <Check size={15} />
-                <span>Refund Shipping Fee</span>
-              </div>
-
-              <ArrowRight
-                size={18}
-                className="decision-arrow"
               />
 
-              <div className="decision-action">
-                <Check size={15} />
-                <span>Action Completed</span>
+              <button
+                onClick={handleSendComplaint}
+                disabled={isInvestigating}
+                aria-label="Send complaint"
+              >
+                <Send size={17} />
+              </button>
+            </div>
+          </div>
+
+          <div className="investigation-card">
+            <div className="investigation-header">
+              <div>
+                <p className="eyebrow">AI INVESTIGATION</p>
+
+                <h3>
+                  {!submittedComplaint
+                    ? 'Waiting for customer issue'
+                    : isInvestigating
+                      ? `Investigating case ${
+                          supportResult?.case_id || 'new case'
+                        }`
+                      : `Analysis complete — case ${
+                          supportResult?.case_id || 'new case'
+                        }`}
+                </h3>
               </div>
 
-              <ArrowRight
-                size={18}
-                className="decision-arrow"
-              />
-
-              <div className="decision-action">
-                <Check size={15} />
-                <span>Verification Passed</span>
-              </div>
+              <span className="investigating-badge">
+                {!submittedComplaint
+                  ? '● Ready'
+                  : isInvestigating
+                    ? '● Investigating'
+                    : '✓ Analysis Complete'}
+              </span>
             </div>
 
-            <div className="resolution-status">
-              <div>
-                <span>Action Status</span>
-                <strong>COMPLETED</strong>
+            <div className="investigation-steps">
+              <div className={`step ${getStepClass(1)}`}>
+                <span>{getStepIcon(1)}</span>
+
+                <div>
+                  <strong>Customer verified</strong>
+
+                  <p>
+                    {investigationStep > 1
+                      ? 'Customer identity confirmed'
+                      : investigationStep === 1
+                        ? 'Verifying customer...'
+                        : 'Waiting to verify customer'}
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <span>Verification</span>
-                <strong>VERIFIED</strong>
+              <div className={`step ${getStepClass(2)}`}>
+                <span>{getStepIcon(2)}</span>
+
+                <div>
+                  <strong>Order found</strong>
+
+                  <p>
+                    {investigationStep > 2
+                      ? order
+                        ? `Order #${orderId} · ₹${orderAmount} · ${
+                            order.status || 'status unavailable'
+                          }`
+                        : 'Order information unavailable'
+                      : investigationStep === 2
+                        ? 'Checking order information...'
+                        : 'Waiting for order lookup'}
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <span>Case Status</span>
-                <strong>RESOLVED</strong>
+              <div className={`step ${getStepClass(3)}`}>
+                <span>{getStepIcon(3)}</span>
+
+                <div>
+                  <strong>Delivery checked</strong>
+
+                  <p>
+                    {investigationStep > 3
+                      ? order
+                        ? `${deliveryType} · ${
+                            daysDelayed === null
+                              ? 'delay unavailable'
+                              : `${daysDelayed} ${
+                                  daysDelayed === 1 ? 'day' : 'days'
+                                } late`
+                          } · ${deliveryStatus}`
+                        : 'Delivery information unavailable'
+                      : investigationStep === 3
+                        ? 'Checking delivery status...'
+                        : 'Waiting for delivery check'}
+                  </p>
+                </div>
+              </div>
+
+              <div className={`step ${getStepClass(4)}`}>
+                <span>{getStepIcon(4)}</span>
+
+                <div>
+                  <strong>Support history checked</strong>
+
+                  <p>
+                    {investigationStep > 4
+                      ? `${ticketHistory.length} previous support interaction${
+                          ticketHistory.length === 1 ? '' : 's'
+                        } found`
+                      : investigationStep === 4
+                        ? 'Checking support history...'
+                        : 'Waiting for support history'}
+                  </p>
+                </div>
+              </div>
+
+              <div className={`step ${getStepClass(5)}`}>
+                <span>{getStepIcon(5)}</span>
+
+                <div>
+                  <strong>Refund policy checked</strong>
+
+                  <p>
+                    {investigationStep > 5
+                      ? supportResult?.investigation?.policy
+                        ? decision === 'approve'
+                          ? 'Eligible under delayed-delivery refund policy'
+                          : 'Request evaluated against refund policy'
+                        : 'Policy information unavailable'
+                      : investigationStep === 5
+                        ? 'Checking refund policy...'
+                        : 'Waiting for policy verification'}
+                  </p>
+                </div>
+              </div>
+
+              <div className={`step ${getStepClass(6)}`}>
+                <span>{getStepIcon(6)}</span>
+
+                <div>
+                  <strong>Evidence collected</strong>
+
+                  <p>
+                    {investigationStep > 6
+                      ? 'Evidence sufficient for decision'
+                      : investigationStep === 6
+                        ? 'Collecting final evidence...'
+                        : 'Waiting for evidence collection'}
+                  </p>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
 
-            <div className="customer-resolution-message">
-              <span>Customer Response</span>
+        <div className="decision-box support-decision">
+          <div className="decision-header">
+            <div>
+              <p className="eyebrow">AI DECISION & RESOLUTION</p>
 
+              <h2>
+                {!submittedComplaint
+                  ? 'No active case'
+                  : isInvestigating
+                    ? 'Analyzing evidence...'
+                    : decision === 'approve'
+                      ? 'Refund approved'
+                      : decision === 'deny'
+                        ? 'Request not approved'
+                        : 'Human review required'}
+              </h2>
+            </div>
+
+            {submittedComplaint &&
+              !isInvestigating &&
+              supportResult && (
+                <div className="decision-approved">
+                  <Check size={15} />
+                  {decision
+                    ? decision.toUpperCase()
+                    : 'PENDING'}
+                </div>
+              )}
+          </div>
+
+          {!submittedComplaint && (
+            <>
               <p>
-                Your express delivery refund has been initiated
-                successfully.
+                Submit a customer issue to start the autonomous
+                investigation.
               </p>
-            </div>
-          </>
-        )}
+
+              <div className="decision-status waiting">
+                Waiting for complaint
+              </div>
+            </>
+          )}
+
+          {submittedComplaint && isInvestigating && (
+            <>
+              <p>
+                ResolveAI is checking customer data, order information,
+                delivery status, support history, and refund policy.
+              </p>
+
+              <div className="progress-bar">
+                <div
+                  style={{
+                    width: `${Math.min(
+                      (investigationStep / 6) * 100,
+                      100
+                    )}%`,
+                  }}
+                ></div>
+              </div>
+
+              <div className="decision-status investigating">
+                Investigation in progress
+              </div>
+            </>
+          )}
+
+          {submittedComplaint &&
+            !isInvestigating &&
+            supportResult && (
+              <>
+                <p>{reason}</p>
+
+                <div className="decision-flow">
+                  <div className="decision-action">
+                    <Check size={15} />
+
+                    <span>
+                      {action === 'refund_shipping_fee'
+                        ? 'Refund Shipping Fee'
+                        : action === 'human_review'
+                          ? 'Human Review'
+                          : 'No Action'}
+                    </span>
+                  </div>
+
+                  <ArrowRight
+                    size={18}
+                    className="decision-arrow"
+                  />
+
+                  <div className="decision-action">
+                    <Check size={15} />
+
+                    <span>
+                      {supportResult.action_status === 'completed'
+                        ? 'Action Completed'
+                        : supportResult.action_status ===
+                            'not_required'
+                          ? 'Action Not Required'
+                          : safeText(
+                              supportResult.action_status,
+                              'Pending'
+                            )}
+                    </span>
+                  </div>
+
+                  <ArrowRight
+                    size={18}
+                    className="decision-arrow"
+                  />
+
+                  <div className="decision-action">
+                    <Check size={15} />
+
+                    <span>
+                      {supportResult.verification_status === 'verified'
+                        ? 'Verification Passed'
+                        : supportResult.verification_status ===
+                            'not_required'
+                          ? 'Verification Not Required'
+                          : safeText(
+                              supportResult.verification_status,
+                              'Pending'
+                            )}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="resolution-status">
+                  <div>
+                    <span>Action Status</span>
+
+                    <strong>
+                      {safeText(
+                        supportResult.action_status,
+                        'PENDING'
+                      ).toUpperCase()}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Verification</span>
+
+                    <strong>
+                      {safeText(
+                        supportResult.verification_status,
+                        'PENDING'
+                      ).toUpperCase()}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Case Status</span>
+
+                    <strong>
+                      {safeText(
+                        supportResult.resolution_status,
+                        'PENDING'
+                      ).toUpperCase()}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="customer-resolution-message">
+                  <span>Customer Response</span>
+
+                  <p>{customerResponse}</p>
+                </div>
+              </>
+            )}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const renderInvestigations = () => {
     const caseState = {
       '#10482': {
-        completedThrough: 3,
-        current: 4,
+        completedThrough: 5,
+        current: null,
       },
 
       '#10481': {
@@ -657,7 +931,6 @@ function App() {
 
     return (
       <div className="dashboard-page investigations-page">
-
         <div className="page-heading">
           <div>
             <p className="eyebrow">INVESTIGATIONS</p>
@@ -677,7 +950,6 @@ function App() {
         </div>
 
         <div className="stats-grid">
-
           <div className="stat-card">
             <div className="stat-icon">
               <SearchCheck size={18} />
@@ -710,11 +982,9 @@ function App() {
               <strong>148</strong>
             </div>
           </div>
-
         </div>
 
         <section className="investigation-panel case-queue-panel">
-
           <div className="panel-header">
             <div>
               <p className="eyebrow">CASE QUEUE</p>
@@ -728,7 +998,6 @@ function App() {
 
           <div className="case-table-wrapper">
             <table className="case-table">
-
               <thead>
                 <tr>
                   <th>CASE</th>
@@ -752,7 +1021,6 @@ function App() {
                     }
                     onClick={() => setSelectedCase(item.id)}
                   >
-
                     <td>
                       <button
                         className="case-id-button"
@@ -776,7 +1044,6 @@ function App() {
 
                     <td>
                       <div className="progress-cell">
-
                         <div className="progress-track">
                           <div
                             className="progress-fill"
@@ -789,7 +1056,6 @@ function App() {
                         <span>
                           {item.progress}%
                         </span>
-
                       </div>
                     </td>
 
@@ -800,22 +1066,16 @@ function App() {
                         {item.status}
                       </span>
                     </td>
-
                   </tr>
                 ))}
               </tbody>
-
             </table>
           </div>
-
         </section>
 
         <div className="investigation-grid">
-
           <section className="investigation-panel workflow-panel">
-
             <div className="panel-header">
-
               <div>
                 <p className="eyebrow">
                   INVESTIGATION WORKFLOW
@@ -829,11 +1089,9 @@ function App() {
               <span className="live-badge">
                 ● LIVE
               </span>
-
             </div>
 
             <div className="timeline">
-
               {investigationStages.map((stage, index) => {
                 const Icon = stage.icon
 
@@ -852,16 +1110,15 @@ function App() {
                 return (
                   <div
                     key={stage.title}
-                    className={`timeline-item ${isCompleted
-                      ? 'timeline-complete'
-                      : isCurrent
-                        ? 'timeline-current'
-                        : 'timeline-pending'
-                      }`}
+                    className={`timeline-item ${
+                      isCompleted
+                        ? 'timeline-complete'
+                        : isCurrent
+                          ? 'timeline-current'
+                          : 'timeline-pending'
+                    }`}
                   >
-
                     <div className="timeline-icon">
-
                       {isCompleted ? (
                         <Check size={14} />
                       ) : isCurrent ? (
@@ -871,13 +1128,10 @@ function App() {
                       ) : (
                         <Icon size={14} />
                       )}
-
                     </div>
 
                     <div className="timeline-content">
-
                       <div className="timeline-title-row">
-
                         <strong>
                           {stage.title}
                         </strong>
@@ -885,27 +1139,20 @@ function App() {
                         <span className="timeline-status">
                           {status}
                         </span>
-
                       </div>
 
                       <p>
                         {stage.description}
                       </p>
-
                     </div>
-
                   </div>
                 )
               })}
-
             </div>
-
           </section>
 
           <section className="investigation-panel evidence-panel">
-
             <div className="panel-header">
-
               <div>
                 <p className="eyebrow">
                   EVIDENCE COLLECTED
@@ -917,11 +1164,9 @@ function App() {
               </div>
 
               <ShieldCheck size={20} />
-
             </div>
 
             <div className="evidence-list">
-
               <div className="evidence-item">
                 <UserCheck size={18} />
 
@@ -941,7 +1186,7 @@ function App() {
 
                 <div>
                   <strong>
-                    #78421 · ₹2,499
+                    #10482 · ₹3499
                   </strong>
 
                   <span>
@@ -991,23 +1236,16 @@ function App() {
                   </span>
                 </div>
               </div>
-
             </div>
-
           </section>
-
         </div>
-
       </div>
     )
   }
 
   const renderAgentDashboard = () => (
     <div className="dashboard-page agent-dashboard-page">
-
-      {/* PAGE HEADING */}
       <div className="page-heading">
-
         <div>
           <p className="eyebrow">
             HUMAN AGENT DASHBOARD
@@ -1027,12 +1265,9 @@ function App() {
           <span></span>
           AI HANDOFF READY
         </div>
-
       </div>
 
-      {/* STATS */}
       <div className="stats-grid">
-
         <div className="stat-card">
           <div className="stat-icon">
             <AlertTriangle size={18} />
@@ -1065,17 +1300,11 @@ function App() {
             <strong>24</strong>
           </div>
         </div>
-
       </div>
 
-      {/* MAIN AGENT WORKSPACE */}
       <div className="agent-workspace">
-
-        {/* CASE SUMMARY */}
         <section className="panel agent-case-panel">
-
           <div className="panel-header">
-
             <div>
               <p className="eyebrow">
                 ESCALATED CASE
@@ -1089,11 +1318,9 @@ function App() {
             <span className="case-status escalated">
               Escalated
             </span>
-
           </div>
 
           <div className="agent-case-grid">
-
             <div className="agent-info-card">
               <UserRound size={17} />
 
@@ -1129,11 +1356,9 @@ function App() {
                 <strong>Awaiting Review</strong>
               </div>
             </div>
-
           </div>
 
           <div className="agent-section">
-
             <div className="agent-section-title">
               <MessageCircle size={16} />
               Complaint
@@ -1142,39 +1367,34 @@ function App() {
             <div className="agent-complaint">
               Customer reports being charged twice for the same order.
             </div>
-
           </div>
 
           <div className="agent-section">
-
             <div className="agent-section-title">
               <History size={16} />
               Support History
             </div>
 
             <div className="agent-history">
-
               <div>
                 <strong>Previous contact</strong>
-                <span>Customer contacted support once regarding payment.</span>
+                <span>
+                  Customer contacted support once regarding payment.
+                </span>
               </div>
 
               <div>
                 <strong>Latest interaction</strong>
-                <span>Duplicate charge reported after order completion.</span>
+                <span>
+                  Duplicate charge reported after order completion.
+                </span>
               </div>
-
             </div>
-
           </div>
-
         </section>
 
-        {/* AI HANDOFF */}
         <section className="panel ai-handoff-panel">
-
           <div className="panel-header">
-
             <div>
               <p className="eyebrow">
                 AI HANDOFF
@@ -1188,7 +1408,6 @@ function App() {
             <div className="ai-handoff-icon">
               <Brain size={19} />
             </div>
-
           </div>
 
           <div className="ai-handoff-status">
@@ -1202,7 +1421,6 @@ function App() {
           </p>
 
           <div className="ai-findings">
-
             <div>
               <span>Customer verified</span>
               <strong>YES</strong>
@@ -1222,20 +1440,13 @@ function App() {
               <span>Automatic action</span>
               <strong>BLOCKED</strong>
             </div>
-
           </div>
-
         </section>
-
       </div>
 
-      {/* EVIDENCE + RECOMMENDATION */}
       <div className="agent-lower-grid">
-
         <section className="panel">
-
           <div className="panel-header">
-
             <div>
               <p className="eyebrow">
                 EVIDENCE CONSIDERED
@@ -1247,17 +1458,17 @@ function App() {
             </div>
 
             <ShieldCheck size={19} />
-
           </div>
 
           <div className="agent-evidence-list">
-
             <div className="agent-evidence-row">
               <Check size={15} />
 
               <div>
                 <strong>Customer identity verified</strong>
-                <span>Customer record matched successfully.</span>
+                <span>
+                  Customer record matched successfully.
+                </span>
               </div>
             </div>
 
@@ -1266,7 +1477,9 @@ function App() {
 
               <div>
                 <strong>Order #78419 located</strong>
-                <span>Order information retrieved successfully.</span>
+                <span>
+                  Order information retrieved successfully.
+                </span>
               </div>
             </div>
 
@@ -1275,7 +1488,9 @@ function App() {
 
               <div>
                 <strong>Payment evidence conflicting</strong>
-                <span>Two payment records require manual verification.</span>
+                <span>
+                  Two payment records require manual verification.
+                </span>
               </div>
             </div>
 
@@ -1284,18 +1499,16 @@ function App() {
 
               <div>
                 <strong>Support history reviewed</strong>
-                <span>Previous payment-related interaction found.</span>
+                <span>
+                  Previous payment-related interaction found.
+                </span>
               </div>
             </div>
-
           </div>
-
         </section>
 
         <section className="panel recommendation-panel">
-
           <div className="panel-header">
-
             <div>
               <p className="eyebrow">
                 AI RECOMMENDATION
@@ -1307,11 +1520,9 @@ function App() {
             </div>
 
             <AlertTriangle size={19} />
-
           </div>
 
           <div className="recommendation-box">
-
             <strong>
               Recommended Action
             </strong>
@@ -1320,11 +1531,9 @@ function App() {
               Verify the duplicate payment records before issuing
               any refund.
             </p>
-
           </div>
 
           <div className="escalation-reason">
-
             <span>
               ESCALATION REASON
             </span>
@@ -1333,11 +1542,9 @@ function App() {
               Conflicting payment evidence prevents ResolveAI from
               safely completing an automatic resolution.
             </p>
-
           </div>
 
           <div className="human-status">
-
             <div>
               <span>AI Decision</span>
               <strong>ESCALATE</strong>
@@ -1347,16 +1554,14 @@ function App() {
               <span>Human Review</span>
               <strong>REQUIRED</strong>
             </div>
-
           </div>
-
         </section>
-
       </div>
-
     </div>
   )
 
+  // IMPORTANT:
+  // Call the render functions with ()
   const renderPage = () => {
     switch (activePage) {
       case 'Customer Support':
@@ -1376,9 +1581,7 @@ function App() {
 
   return (
     <div className="app-shell">
-
       <aside className="sidebar">
-
         <div className="brand">
           <div className="brand-logo">
             <img
@@ -1394,12 +1597,12 @@ function App() {
         </div>
 
         <nav className="sidebar-nav">
-
           <button
-            className={`nav-item ${activePage === 'Dashboard'
-              ? 'active'
-              : ''
-              }`}
+            className={`nav-item ${
+              activePage === 'Dashboard'
+                ? 'active'
+                : ''
+            }`}
             onClick={() => setActivePage('Dashboard')}
           >
             <LayoutDashboard size={18} />
@@ -1410,10 +1613,11 @@ function App() {
           </button>
 
           <button
-            className={`nav-item ${activePage === 'Customer Support'
-              ? 'active'
-              : ''
-              }`}
+            className={`nav-item ${
+              activePage === 'Customer Support'
+                ? 'active'
+                : ''
+            }`}
             onClick={() => setActivePage('Customer Support')}
           >
             <MessageCircle size={18} />
@@ -1424,10 +1628,11 @@ function App() {
           </button>
 
           <button
-            className={`nav-item ${activePage === 'Investigations'
-              ? 'active'
-              : ''
-              }`}
+            className={`nav-item ${
+              activePage === 'Investigations'
+                ? 'active'
+                : ''
+            }`}
             onClick={() => setActivePage('Investigations')}
           >
             <SearchCheck size={18} />
@@ -1438,10 +1643,11 @@ function App() {
           </button>
 
           <button
-            className={`nav-item ${activePage === 'Agent Dashboard'
-              ? 'active'
-              : ''
-              }`}
+            className={`nav-item ${
+              activePage === 'Agent Dashboard'
+                ? 'active'
+                : ''
+            }`}
             onClick={() => setActivePage('Agent Dashboard')}
           >
             <UsersRound size={18} />
@@ -1450,13 +1656,10 @@ function App() {
               Agent Dashboard
             </span>
           </button>
-
         </nav>
 
         <div className="sidebar-bottom">
-
           <div className="system-status">
-
             <span></span>
 
             <div>
@@ -1468,19 +1671,13 @@ function App() {
                 Qwen · Local Reasoning
               </small>
             </div>
-
           </div>
-
         </div>
-
       </aside>
 
       <main className="main-content">
-
         <header className="topbar">
-
           <div>
-
             <span className="topbar-label">
               RESOLVE AI
             </span>
@@ -1492,23 +1689,16 @@ function App() {
             <span>
               {activePage}
             </span>
-
           </div>
 
           <div className="topbar-status">
-
             <span></span>
-
             LOCAL AI ACTIVE
-
           </div>
-
         </header>
 
         {renderPage()}
-
       </main>
-
     </div>
   )
 }
