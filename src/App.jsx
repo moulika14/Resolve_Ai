@@ -147,7 +147,7 @@ function App() {
       }
 
       const response = await fetch(
-        'http://127.0.0.1:8000/api/support',
+        'https://resolve-ai-backend-no5u.onrender.com/api/support',
         {
           method: 'POST',
           headers: {
